@@ -21,9 +21,11 @@ void update_frequency();
 void handleMIDIInterrupt();
 void handleTimerInterrupt();
 
-char message1 = 0;
-char message2 = 0;
-char message3 = 0;
+unsigned char message1 = 0;
+unsigned char message2 = 0;
+unsigned char message3 = 0;
+
+char state = 0;
 
 int note = 0;
 int gate = 0;
@@ -41,21 +43,70 @@ void user_isr( void ) {
 }
 
 void handleMIDIInterrupt(){
-	if ((U1RXREG & 0xff) != 0xfe){
-		message1 = ((U1RXREG & 0xff) >> 4);
-		U1STA &= ~0x1;
-		while(!(U1STA & 0x1));
-		message2 = U1RXREG & 0xff;
-		U1STA &= ~0x1;
-		while(!(U1STA & 0x1));
-		message3 = U1RXREG & 0xff;
-		U1STA &= ~0x1;
-		
-		gate = 0;
-		if (message3 != 0)
-			gate = 1;
-		note = message2 - 81;
+
+	switch (state){
+		case 0:
+			message1 = U1RXREG;
+			unsigned char noteOnOff = message1 >> 4;
+			if ((noteOnOff == 9) || (noteOnOff == 10))
+				state = 1;
+			else
+				state = 0;
+			break;
+		case 1:
+			message2 = U1RXREG;
+			state = 2;
+			break;
+		case 2:
+			message3 = U1RXREG;
+			if ((message3 > 0)){
+				gate = 1;
+				note = message2 - 81;
+			}else{
+				gate = 0;
+			}
+			state = 0;
+			break;
+		default:
+			state = 0;
+			gate = 0;
+			break;
 	}
+
+
+
+
+/*	switch (state){*/
+/*		case 0:*/
+/*			message1 = U1RXREG;*/
+/*			if (message1 != 0xfe)*/
+/*				state = 1;*/
+/*			break;*/
+/*		case 1:*/
+/*			message2 = U1RXREG;*/
+/*			if (message2 != 0xfe)*/
+/*				state = 2;*/
+/*			else*/
+/*				state = 0;*/
+/*			break;*/
+/*		case 2:*/
+/*			message3 = U1RXREG;*/
+/*			if (message3 != 0xfe){*/
+/*				unsigned char noteOnOff = message1 >> 4;*/
+/*				if ((noteOnOff == 9) && (message3 > 0)){*/
+/*					gate = 1;*/
+/*					note = message2 - 81;*/
+/*				}else{*/
+/*					gate = 0;*/
+/*				}*/
+/*			}*/
+/*			state = 0;*/
+/*			break;*/
+/*		default:*/
+/*			state = 0;*/
+/*			gate = 0;*/
+/*			break;*/
+/*	}*/
 	IFS(0) &= ~(1 << 27);
 	return;
 }
