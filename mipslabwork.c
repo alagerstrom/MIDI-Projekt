@@ -21,6 +21,8 @@ void update_frequency();
 void handleMIDIInterrupt();
 void handleTimerInterrupt();
 
+
+
 unsigned char message1 = 0;
 unsigned char message2 = 0;
 unsigned char message3 = 0;
@@ -28,7 +30,8 @@ unsigned char message3 = 0;
 char state = 0;
 
 int note = 0;
-int gate = 0;
+int noteOffset = 0;
+int gate = 1;
 double frequency = BASE_FREQUENCY;
 
 /* Interrupt Service Routine */
@@ -111,10 +114,15 @@ void handleMIDIInterrupt(){
 	return;
 }
 void handleTimerInterrupt(){
-	if (gate)
+	if (gate){
 		PORTE = ~(PORTE);
-	else
+		if ((PORTG >> 6) & 0x1)
+			PORTG &= ~(1 << 6);
+		else
+			PORTG |= 1 << 6;
+	}else{
 		PORTE = 0;
+	}
 	IFS(0) &= ~(1 << 8);
 	return;
 }
@@ -140,6 +148,11 @@ void init_interrupt(){
 /* Lab-specific initialization goes here */
 void labinit( void )
 {
+	//pin 13 RG6
+	TRISG &= ~(1 << 6); // Pin 13 till output
+	PORTG &= ~(1 << 6); // Pin 13 till 0
+	TRISD |= (3 << 6);  //BTN 3 & 4 som input
+	
 	TRISE = 0;
 	PORTE = 0;
 	uartSetup();
@@ -147,26 +160,41 @@ void labinit( void )
 	
 	return;
 }
+void check_buttons( void ){
+	
+	if ((PORTD >> 6) & 1){
+		gate = 1;
+		noteOffset = 0;
+	}else if ((PORTD >> 7) & 1){
+		gate = 1;
+		noteOffset = -12;
+	} else 
+		gate = 0;
+	
+	
+}
 
 /* This function is called repetitively from the main program */
 void main_loop( void ) {
 	//display_stuff();
+	//check_buttons();
 	update_frequency();
 	
 	return;
 }
 
 void update_frequency(){
+	int usedNote = note + noteOffset;
 	frequency = BASE_FREQUENCY;
 	double freqScaling = FREQUENCY_SCALING;
 	int i;
-	if (note < 0){
-		int positiveNote = note * -1;
+	if (usedNote < 0){
+		int positiveNote = usedNote * -1;
 		for (i = 0; i < positiveNote; i++){
 			frequency = frequency / FREQUENCY_SCALING;
 		}
 	}else{
-		for (i = 0; i < note; i++){
+		for (i = 0; i < usedNote; i++){
 			frequency = frequency * FREQUENCY_SCALING;
 		}
 	}
